@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Solve that Wordle!</title>
+  </head>
+  <body style="font-family: 'Clear Sans', 'Helvetica Neue', Arial, sans-serif;">
+  <div style="width: 600px;margin: auto">
+    <div>
+      <p>{{ message }}</p>
+    </div>
+
+    <div>
+        <p> The Wordle feedback should be entered as a series of numbers matching to feedback
+            colors like so: <span style="font-size:160%;color:white">
+                <span style="background-color:#86888a;"> 0</span>
+                <span style="background-color:#c9b458"> 1</span>
+                <span style="background-color:#6aaa64"> 2</span></span>
+            e.g. <span style="color:white"><span style="background-color:#6aaa64">2</span><span style="background-color:#86888a;">0</span><span style="background-color:#c9b458">11</span><span style="background-color:#86888a;">0</span></span></p>
+
+    </div>
+
+    <div>
+      <p>{{ trystring }}</p>
+    </div>
+
+    <div>
+      <p>{{ error_message }}</p>
+    </div>
+
+  <form action="{{url_for("index")}}" method="post">
+  <label for="guess">Guessed word:</label><br>
+  <input type="text" id="guess" name="guess" placeholder={{ bw }}><br>
+  <label for="resp">Wordle response:</label><br>
+  <input type="text" id="resp" name="resp" placeholder="">
+      <button type="submit">Submit</button>
+
+  </form>
+
+        <div>
+      <p>{{ victory }}</p>
+    </div>
+
+    <form method="post" action="/">
+        <input type="submit" value="Reset" name="reset"/>
+    </form>
+    <p>Guesses so far:</p>
+    <ul>
+        {% for gpair in tries %}
+        <li>{{ gpair }}</li>
+        {% endfor %}
+    </ul>
+  </div>
+  </body>
+</html>
