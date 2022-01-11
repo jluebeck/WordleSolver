@@ -98,13 +98,5 @@ def index():  # put application's code here
     return render_template("index.html", message=helpstring, trystring=original_trystring, bw=cbw, tries=tries)
 
 
-# @app.route('/add_')
-# def handle_inputs():
-#     return "Specify the Wordle colors for the guess by typing 0 for grey, 1 for yellow, and 2 for green, " + \
-#                          " e.g. 01002 or 20110 or 00000: "
-#
-#
 if __name__ == '__main__':
     app.run()
-
-# -----------------------
