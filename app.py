@@ -20,8 +20,8 @@ modes_to_wmap = {"Wordle (default)":"default", "Wordle (expanded)":"full", "Scra
 def initialize(mode="default", k=5):
     if mode == "scrabble":
         init_cbw = "TARES"
-        init_to_check = read_words(k, "resources/sowpods5.txt.txt")
-        init_poss_words = read_words(k, "resources/sowpods5.txt.txt")
+        init_to_check = read_words(k, "resources/sowpods5.txt")
+        init_poss_words = read_words(k, "resources/sowpods5.txt")
 
     elif mode == "full":
         init_cbw = "TARES"
