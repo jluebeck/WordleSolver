@@ -126,3 +126,6 @@ dmypy.json
 #PyCharm stuff
 .idea*
 .DS_Store
+
+flask_session/*
+unsolved_words*

@@ -1,6 +1,8 @@
-from collections import defaultdict
+#import json
 from math import log
 from string import ascii_uppercase
+
+from wordle_data import *
 
 # Jens Luebeck (jluebeck [a] ucsd.edu]
 
@@ -9,21 +11,22 @@ Take list of candidate words and data structures which contain information neces
 that can't appear, letters which appear in specific places, and the known max/min counts of letters. Returns the set of 
 words passing these filters.
 '''
-def get_possible_words(words, ignoredLetterSet, reqLetterSet, p2c, lower_counts, upper_counts):
+# def get_possible_words(words, ignoredLetterSet, reqLetterSet, p2c, lower_counts, upper_counts):
+def get_possible_words(data):
     kept = set()
-    for w in words:
+    for w in data.poss_ans:
         wset = set(w)
-        # check that the filters are poppulated and that at minimum no illegal letters appear and that all required
+        # check that the filters are populated and that at minimum no illegal letters appear and that all required
         # letters appear
-        if not ignoredLetterSet.intersection(wset):
+        if not data.bad_letters.intersection(wset):
             # check if any known letters are in not present
-            if p2c:
-                if not all([w[pos] == c for pos, c in p2c.items()]):
+            if data.pos_letters:
+                if not all([w[pos] == c for pos, c in data.pos_letters.items()]):
                     continue
 
             has_illegal = False
             # check that no "yellow" letters are appearing in their previous locations
-            for c, nl in reqLetterSet.items():
+            for c, nl in data.unpos_req_letters.items():
                 if any([w[i] == c for i in nl]):
                     has_illegal = True
                     break
@@ -32,7 +35,7 @@ def get_possible_words(words, ignoredLetterSet, reqLetterSet, p2c, lower_counts,
                 continue
 
             # check that the word does not contain fewer than the minimum number appearances for the letters
-            for char, lcount in lower_counts.items():
+            for char, lcount in data.lower_counts.items():
                 if w.count(char) < lcount:
                     has_illegal = True
                     break
@@ -41,7 +44,7 @@ def get_possible_words(words, ignoredLetterSet, reqLetterSet, p2c, lower_counts,
                 continue
 
             # check that the word does not contain more than the maximum number of appearances for the letters
-            for char, ucount in upper_counts.items():
+            for char, ucount in data.upper_counts.items():
                 if w.count(char) > ucount:
                     has_illegal = True
                     break
@@ -163,34 +166,35 @@ def best_word(candidate_words, check_words, pos_scores, k):
 
 
 # take the feedback from the previous run and add the information to the data structures.
-def add_feedback(guess, colors, bad_letters, unpos_req_letters, pos_letters, lower_counts, upper_counts):
+# def add_feedback(guess, colors, bad_letters, unpos_req_letters, pos_letters, lower_counts, upper_counts):
+def add_feedback(guess, feedback, data):
     l2count_good = defaultdict(int)
     l2count_bad = defaultdict(int)
     # count the yellows and greens and store
-    for ind, (char, col) in enumerate(zip(guess, colors)):
+    for ind, (char, col) in enumerate(zip(guess, feedback)):
         if col == "1":
-            unpos_req_letters[char].add(ind)
+            data.unpos_req_letters[char].add(ind)
             l2count_good[char] += 1
 
         elif col == "2":
-            pos_letters[ind] = char
+            data.pos_letters[ind] = char
             l2count_good[char] += 1
 
     # count the greys separately since there may be yellows of the same letter
-    for ind, (char, col) in enumerate(zip(guess, colors)):
+    for ind, (char, col) in enumerate(zip(guess, feedback)):
         if col == "0":
-            if char not in unpos_req_letters and char not in pos_letters.values():
-                bad_letters.add(char)
+            if char not in data.unpos_req_letters and char not in data.pos_letters.values():
+                data.bad_letters.add(char)
 
             else:
                 l2count_bad[char] += 1
 
     # use the greys vs yellow/green to improve bounds on how many times a letter can appear
     for char, curr_count in l2count_good.items():
-        if curr_count > lower_counts[char]:
-            lower_counts[char] = curr_count
+        if curr_count > data.lower_counts[char]:
+            data.lower_counts[char] = curr_count
         if l2count_bad[char] > 0:
-            upper_counts[char] = curr_count
+            data.upper_counts[char] = curr_count
 
 
 # read flat file of scrabble words, keep only words of size k.
@@ -206,25 +210,26 @@ def read_words(k, file):
     return words
 
 
-def update_guess(guess, feedback, prev_words, bad_letters, unpos_req_letters, pos_letters, lower_counts, upper_counts,
-                 gnum, k, to_check):
-    add_feedback(guess, feedback, bad_letters, unpos_req_letters, pos_letters, lower_counts, upper_counts)
-    new_words = get_possible_words(prev_words, bad_letters, unpos_req_letters, pos_letters, lower_counts, upper_counts)
+def update_guess(guess, feedback, data):
+    add_feedback(guess, feedback, data)
+    new_words = get_possible_words(data)
 
-    if feedback == "2" * k:
-        return True, 1, [], []
+    if feedback == "2" * data.k:
+        return True, 1
 
     nwords = len(new_words)
     if nwords < 1:
-        return None, nwords, [], []
+        return None, nwords
 
     else:
-        if len(new_words) < 3 or gnum >= 5:
-            to_check = new_words
+        if len(new_words) < 3 or data.gnum >= 5:
+            data.to_check = new_words
         else:
-            to_check = get_check_words(to_check, bad_letters)
+            data.to_check = get_check_words(data.to_check, data.bad_letters)
 
-        pos_scores = get_pos_nll_scores(new_words, k)
-        bw = best_word(new_words, to_check, pos_scores, k)
+        pos_scores = get_pos_nll_scores(new_words, data.k)
+        bw = best_word(new_words, data.to_check, pos_scores, data.k)
 
-    return bw, nwords, to_check, new_words
+    data.poss_ans = new_words
+    data.gnum+=1
+    return bw, nwords

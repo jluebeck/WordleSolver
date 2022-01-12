@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en-us">
   <head>
     <title>Solve that Wordle!</title>
   </head>
@@ -18,7 +18,7 @@
             e.g. <span style="color:white"><span style="background-color:#6aaa64">2</span><span style="background-color:#86888a;">0</span><span style="background-color:#c9b458">11</span><span style="background-color:#86888a;">0</span></span></p>
 
     </div>
-
+<a href="https://jluebeck.github.io/posts/WordleSolver">Here's how this tool works.</a>
     <div>
       <p>{{ trystring }}</p>
     </div>
@@ -27,9 +27,9 @@
       <p>{{ error_message }}</p>
     </div>
 
-  <form action="{{url_for("index")}}" method="post">
+  <form action="{{url_for('play')}}" method="post">
   <label for="guess">Guessed word:</label><br>
-  <input type="text" id="guess" name="guess" placeholder={{ bw }}><br>
+  <input type="text" id="guess" name="guess" placeholder={{bw}}><br>
   <label for="resp">Wordle response:</label><br>
   <input type="text" id="resp" name="resp" placeholder="">
       <button type="submit">Submit</button>
@@ -49,6 +49,9 @@
         <li>{{ gpair }}</li>
         {% endfor %}
     </ul>
+         <div>
+
+    </div>
   </div>
   </body>
 </html>

@@ -1,102 +1,158 @@
-import copy
-
-from flask import Flask, request, render_template, escape
+from flask import Flask, request, render_template, escape, session, redirect
+from flask_session import Session
 
 from wordle_solver import *
 
 #Jens Luebeck (jluebeck [a] ucsd.edu]
 
 app = Flask(__name__)
-tries = []
-gnum = 1
-k = 5
-init_cbw = "SOARE"
-cbw = init_cbw
-bad_letters = set()
-unpos_req_letters = defaultdict(set)
-pos_letters = dict()
-lower_counts = defaultdict(int)
-upper_counts = defaultdict(int)
-init_to_check = read_words(k, "resources/full_set.txt")
-init_poss_words = read_words(k, "resources/reduced_set.txt")
-to_check = copy.copy(init_to_check)
-poss_words = copy.copy(init_poss_words)
+app.secret_key = b'\xb4\xc0m\x90w\xe5`i/\xedl\xc5\xc1B\xd9\xec'
+app.config['SESSION_TYPE'] = 'filesystem'
+
+Session(app)
+
+helpstring = "Enter your guess and the feedback info into this tool. Enter guesses sequentially. This tool does" \
+             " not yet handle \"hard mode\".\n"
+
+def initialize(mode="default", k=5):
+    if mode == "scrabble":
+        init_cbw = "TARES"
+        init_to_check = read_words(k, "resources/sowpods5.txt.txt")
+        init_poss_words = read_words(k, "resources/sowpods5.txt.txt")
+
+    elif mode == "full":
+        init_cbw = "TARES"
+        init_to_check = read_words(k, "resources/full_set.txt")
+        init_poss_words = read_words(k, "resources/full_set.txt")
+
+    else:
+        init_cbw = "SOARE"
+        init_to_check = read_words(k, "resources/full_set.txt")
+        init_poss_words = read_words(k, "resources/reduced_set.txt")
+
+    session['tries'] = []
+    session['k'] = k
+    session['cbw'] = init_cbw
+    session['poss_ans'] = init_poss_words
+    session['to_check'] = init_to_check
+    session['bad_letters'] = []
+    session['unpos_req_letters'] = defaultdict(set)
+    session['pos_letters'] = dict()
+    session['lower_counts'] = defaultdict(int)
+    session['upper_counts'] = defaultdict(int)
+    session['gnum'] = 1
+
+
+def session_to_data():
+    data = WordleData(session['poss_ans'], session['to_check'], cbw=session['cbw'])
+    data.k = session['k']
+    data.bad_letters = set(session['bad_letters'])
+    data.unpos_req_letters = session['unpos_req_letters']
+    data.pos_letters = session['pos_letters']
+    data.lower_counts = session['lower_counts']
+    data.upper_counts = session['upper_counts']
+    data.gnum = session['gnum']
+    return data
+
+
+def update_session(data):
+    session['cbw'] = data.cbw
+    session['poss_ans'] = data.poss_ans
+    session['to_check'] = data.to_check
+    session['bad_letters'] = list(data.bad_letters)
+    session['unpos_req_letters'] = data.unpos_req_letters
+    session['pos_letters'] = data.pos_letters
+    session['lower_counts'] = data.lower_counts
+    session['upper_counts'] = data.upper_counts
+    session['gnum'] = data.gnum
+
+
+@app.route('/play', methods=["GET", "POST"])
+def play():
+    if request.method == "POST":
+        if request.form.get('reset') == 'Reset':
+            session.pop('tries', None)
+            session.pop('k', None)
+            session.pop('cbw', None)
+            session.pop('poss_ans', None)
+            session.pop('to_check', None)
+            session.pop('bad_letters', None)
+            session.pop('unpos_req_letters', None)
+            session.pop('pos_letters', None)
+            session.pop('lower_counts', None)
+            session.pop('upper_counts', None)
+            session.pop('gnum', None)
+            return redirect('/')
+            # data = initialize(mode=session['mode'])
+            # session['original_trystring'] = "As a first guess, I recommend \"" + data.cbw + "\" since it " \
+            #                                 "maximizes the entropy of the Wordle feedback on the reduced Worlde " \
+            #                                                                                            "answer set."
+            #
+            # return render_template("index.html", message=helpstring, trystring=session['original_trystring'],
+            #                        bw=data.cbw, tries=session['tries'])
+
+        data = session_to_data()
+        session['guess'] = str(escape(request.form.get("guess"))).strip()
+        session['resp'] = str(escape(request.form.get("resp"))).strip()
+        if not session['guess']:
+            session['guess'] = data.cbw
+
+        # check the text
+        if len(session['guess']) != 5 or not session['guess'].isalpha():
+            em = "Your guess must be five letters, and no special characters/numbers"
+            return render_template("index.html", message=helpstring, error_message=em, tries=session['tries'])
+
+        # check color validity
+        elif not set(session['resp']).issubset({"0", "1", "2"}) or len(session['resp']) != 5:
+            em = "The color specification must be the five numbers of 0, 1, or 2 for grey, yellow, green " \
+                 "respectively, provided as feedback by Wordle"
+            return render_template("index.html", message=helpstring, error_message=em, tries=session['tries'])
+
+        else:
+            session['retval'], session['ncands'] = update_guess(session['guess'], session['resp'], data)
+            al = session['tries']
+            al.append((session['guess'], session['resp'], str(session['ncands']) + " remaining possible words"))
+            session['tries'] = al
+
+            if session['retval'] is True:
+                # celebrate victory
+                victory = "Awesome! :-)"
+                update_session(data)
+                return render_template("index.html", message=helpstring, victory=victory, tries=session['tries'])
+
+            elif session['retval'] is None:
+                em = "There were no candidate words from this sequence. Is it a valid candidate? Try resetting and " \
+                     "double checking?"
+                update_session(data)
+                return render_template("index.html", message=helpstring, error_message=em, tries=session['tries'])
+
+            else:
+                data.cbw = session['retval']
+
+            trystring = "Try: " + data.cbw
+            update_session(data)
+            return render_template("index.html", message=helpstring, trystring=trystring, bw=data.cbw,
+                                   tries=session['tries'])
+
+    return render_template("index.html", message=helpstring, trystring=session['original_trystring'],
+                           bw=session['cbw'], tries=session['tries'])
+
 
 @app.route('/', methods=["GET", "POST"])
 def index():  # put application's code here
-    global gnum
-    global k
-    global init_cbw
-    global cbw
-    global bad_letters
-    global unpos_req_letters
-    global pos_letters
-    global lower_counts
-    global upper_counts
-    global to_check
-    global poss_words
+    session['mode'] = "default"
+    initialize(mode=session['mode'])
 
-    helpstring = "Enter your guesses sequentially. This tool does not yet handle \"hard " \
-                 "mode\".\n"
+    session['original_trystring'] = "As a first guess, I recommend \"" + session['cbw'] + "\" since it maximizes" \
+                                    " the entropy of the Wordle feedback on the reduced Worlde answer set."
 
-    original_trystring = "As a first guess, I recommend \"" + cbw + "\" since it maximizes the entropy of the Wordle " \
-                        "feedback on the reduced Worlde answer set."
-    while request.method == "POST":
-        if request.form.get('reset') == 'Reset':
-            tries.clear()
-            gnum=1
-            cbw = init_cbw
-            trystring = original_trystring
-            to_check = copy.copy(init_to_check)
-            poss_words = copy.copy(init_poss_words)
-            bad_letters = set()
-            unpos_req_letters = defaultdict(set)
-            pos_letters = dict()
-            lower_counts = defaultdict(int)
-            upper_counts = defaultdict(int)
-            return render_template("index.html", message=helpstring, trystring=trystring, bw=cbw, tries=tries)
+    session['trystring'] = session['original_trystring']
+    if request.method == "POST":
+        return play()
 
-        guess = str(escape(request.form.get("guess"))).strip()
-        resp = str(escape(request.form.get("resp"))).strip()
-        if not guess:
-            guess = cbw
-
-        # check the text
-        if len(guess) != 5 or not guess.isalpha():
-            em = "Your guess must be five letters, and no special characters/numbers"
-            return render_template("index.html", message=helpstring, error_message=em, tries=tries)
-
-        # check color validity
-        elif not set(resp).issubset({"0", "1", "2"}) or len(resp) != 5:
-            em = "The color specification must be the five numbers of 0, 1, or 2 for grey, yellow, green " \
-                 "respectively, provided as feedback by Wordle"
-            return render_template("index.html", message=helpstring, error_message=em, tries=tries)
-
-        else:
-            retval, ncands, to_check, poss_words = update_guess(guess, resp, poss_words, bad_letters, unpos_req_letters,
-                                                        pos_letters, lower_counts, upper_counts, gnum, k, to_check)
-
-            tries.append((guess, resp, str(ncands) + " remaining possible words"))
-            gnum+=1
-
-            if retval is True:
-                # celebrate victory
-                victory="Awesome! :-)"
-                return render_template("index.html", message=helpstring, victory=victory, tries=tries)
-
-            elif retval is None:
-                em = "There were no candidate words from this sequence. Is it a valid candidate? Try resetting and " \
-                     "double checking?"
-                return render_template("index.html", message=helpstring, error_message=em, tries=tries)
-
-            else:
-                cbw = retval
-
-            trystring = "Try: " + cbw
-            return render_template("index.html", message=helpstring, trystring=trystring, bw=cbw, tries=tries)
-
-    return render_template("index.html", message=helpstring, trystring=original_trystring, bw=cbw, tries=tries)
+    return render_template("index.html", message=helpstring, trystring=session['original_trystring'], bw=session['cbw'],
+                           tries=session['tries'])
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
