@@ -36,22 +36,29 @@
 
   </form>
 
-        <div>
+      <div>
       <p>{{ victory }}</p>
     </div>
 
     <form method="post" action="/">
         <input type="submit" value="Reset" name="reset"/>
     </form>
-    <p>Guesses so far:</p>
+
+      &nbsp;
+
+ <form method="post" action="/">
+     <input type="submit" value="Wordle (default)" name="change_data"/>
+     <input type="submit" value="Wordle (expanded)" name="change_data"/>
+     <input type="submit" value="Scrabble" name="change_data"/>
+    </form>
+
+<p>{{ dataset_description }}</p>
+      <p>Guesses so far:</p>
     <ul>
         {% for gpair in tries %}
         <li>{{ gpair }}</li>
         {% endfor %}
     </ul>
-         <div>
-
-    </div>
   </div>
   </body>
 </html>

@@ -13,6 +13,9 @@ Session(app)
 
 helpstring = "Enter your guess and the feedback info into this tool. Enter guesses sequentially. This tool does" \
              " not yet handle \"hard mode\".\n"
+wmap = {"default":"Wordle (default)", "full":"Wordle (expanded)", "scrabble":"Scrabble"}
+modes_to_wmap = {"Wordle (default)":"default", "Wordle (expanded)":"full", "Scrabble":"scrabble"}
+
 
 def initialize(mode="default", k=5):
     if mode == "scrabble":
@@ -70,7 +73,13 @@ def update_session(data):
 @app.route('/play', methods=["GET", "POST"])
 def play():
     if request.method == "POST":
-        if request.form.get('reset') == 'Reset':
+        reset = False
+        picked_wordset = request.form.get('change_data')
+        if picked_wordset in modes_to_wmap:
+            reset = True
+            session['mode'] = modes_to_wmap[picked_wordset]
+
+        if request.form.get('reset') == 'Reset' or reset:
             session.pop('tries', None)
             session.pop('k', None)
             session.pop('cbw', None)
@@ -83,13 +92,6 @@ def play():
             session.pop('upper_counts', None)
             session.pop('gnum', None)
             return redirect('/')
-            # data = initialize(mode=session['mode'])
-            # session['original_trystring'] = "As a first guess, I recommend \"" + data.cbw + "\" since it " \
-            #                                 "maximizes the entropy of the Wordle feedback on the reduced Worlde " \
-            #                                                                                            "answer set."
-            #
-            # return render_template("index.html", message=helpstring, trystring=session['original_trystring'],
-            #                        bw=data.cbw, tries=session['tries'])
 
         data = session_to_data()
         session['guess'] = str(escape(request.form.get("guess"))).strip()
@@ -100,13 +102,15 @@ def play():
         # check the text
         if len(session['guess']) != 5 or not session['guess'].isalpha():
             em = "Your guess must be five letters, and no special characters/numbers"
-            return render_template("index.html", message=helpstring, error_message=em, tries=session['tries'])
+            return render_template("index.html", message=helpstring, error_message=em, tries=session['tries'],
+                                   dataset_description=session['data_description'])
 
         # check color validity
         elif not set(session['resp']).issubset({"0", "1", "2"}) or len(session['resp']) != 5:
             em = "The color specification must be the five numbers of 0, 1, or 2 for grey, yellow, green " \
-                 "respectively, provided as feedback by Wordle"
-            return render_template("index.html", message=helpstring, error_message=em, tries=session['tries'])
+                 "respectively, provided as feedback by Wordle\n Try: " + session['cbw']
+            return render_template("index.html", message=helpstring, error_message=em, tries=session['tries'],
+                                   bw=session['cbw'],dataset_description=session['data_description'])
 
         else:
             session['retval'], session['ncands'] = update_guess(session['guess'], session['resp'], data)
@@ -118,13 +122,15 @@ def play():
                 # celebrate victory
                 victory = "Awesome! :-)"
                 update_session(data)
-                return render_template("index.html", message=helpstring, victory=victory, tries=session['tries'])
+                return render_template("index.html", message=helpstring, victory=victory, tries=session['tries'],
+                                       dataset_description=session['data_description'])
 
             elif session['retval'] is None:
                 em = "There were no candidate words from this sequence. Is it a valid candidate? Try resetting and " \
                      "double checking?"
                 update_session(data)
-                return render_template("index.html", message=helpstring, error_message=em, tries=session['tries'])
+                return render_template("index.html", message=helpstring, error_message=em, tries=session['tries'],
+                                       dataset_description=session['data_description'])
 
             else:
                 data.cbw = session['retval']
@@ -132,27 +138,29 @@ def play():
             trystring = "Try: " + data.cbw
             update_session(data)
             return render_template("index.html", message=helpstring, trystring=trystring, bw=data.cbw,
-                                   tries=session['tries'])
+                                   tries=session['tries'],dataset_description=session['data_description'])
 
     return render_template("index.html", message=helpstring, trystring=session['original_trystring'],
-                           bw=session['cbw'], tries=session['tries'])
+                           bw=session['cbw'], tries=session['tries'],dataset_description=session['data_description'])
 
 
 @app.route('/', methods=["GET", "POST"])
 def index():  # put application's code here
-    session['mode'] = "default"
-    initialize(mode=session['mode'])
+    if 'mode' not in session:
+        session['mode'] = "default"
 
+    session['data_description'] = "The current dataset uses the possible answerset from: " + wmap[session['mode']]
+    initialize(mode=session['mode'])
     session['original_trystring'] = "As a first guess, I recommend \"" + session['cbw'] + "\" since it maximizes" \
-                                    " the entropy of the Wordle feedback on the reduced Worlde answer set."
+                                    " the entropy of the feedback on the answer set."
 
     session['trystring'] = session['original_trystring']
     if request.method == "POST":
         return play()
 
     return render_template("index.html", message=helpstring, trystring=session['original_trystring'], bw=session['cbw'],
-                           tries=session['tries'])
+                           tries=session['tries'], dataset_description=session['data_description'])
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
