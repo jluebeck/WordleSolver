@@ -94,7 +94,7 @@ def play():
             return redirect('/')
 
         data = session_to_data()
-        session['guess'] = str(escape(request.form.get("guess"))).strip()
+        session['guess'] = str(escape(request.form.get("guess"))).strip().upper()
         session['resp'] = str(escape(request.form.get("resp"))).strip()
         if not session['guess']:
             session['guess'] = data.cbw
